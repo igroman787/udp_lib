@@ -1,0 +1,4 @@
+pynacl
+pycryptodome
+x25519
+fastcrc
