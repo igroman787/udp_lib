@@ -6,9 +6,9 @@ from threading import Thread
 from secrets import token_bytes
 from nacl.signing import SigningKey
 
-from schemes_lib import Schemes
-from bytes_lib import BytesReader
-from encryption_lib import (
+from .schemes_lib import Schemes
+from .bytes_lib import BytesReader
+from .encryption_lib import (
 	get_public_key,
 	get_secret,
 	sign_message,
@@ -19,7 +19,7 @@ from encryption_lib import (
 	parse_aes_params,
 	create_aes_ciphers
 )
-from utils_lib import (
+from .utils_lib import (
 	sha256,
 	get_peer_id,
 	get_method_id,

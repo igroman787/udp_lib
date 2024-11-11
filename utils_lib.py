@@ -4,8 +4,8 @@ import socket
 import base64
 import hashlib
 import fastcrc
-from bytes_lib import BytesReader
 import datetime as date_time_library
+from .bytes_lib import BytesReader
 
 
 def ip2uint(ip):

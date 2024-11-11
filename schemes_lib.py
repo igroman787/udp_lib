@@ -1,6 +1,6 @@
 from fastcrc import crc16
-from utils_lib import Dict
-from bytes_lib import BytesReader, BytesWriter
+from .utils_lib import Dict
+from .bytes_lib import BytesReader, BytesWriter
 
 
 class Schemes():

@@ -4,8 +4,8 @@ from Crypto.Cipher import AES # pip3 install pycryptodome
 from Crypto.Util import Counter
 import x25519 # pip3 install x25519
 
-from utils_lib import sha256
-from bytes_lib import BytesReader
+from .utils_lib import sha256
+from .bytes_lib import BytesReader
 
 def sign_message(private_key, message):
 	signing_key = SigningKey(private_key)
