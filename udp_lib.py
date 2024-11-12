@@ -48,7 +48,8 @@ class UdpPeer:
 		self.incoming_messages = dict()
 		self.incoming_encrypted_messages = dict()
 		self.last_ping_time = 0
-		self.last_connect_time = 0
+		self.last_connecting_time = 0
+		self.last_connected_time = 0
 		self.buff = Dict()
 	#end define
 
@@ -118,7 +119,7 @@ class UdpPeer:
 		message_id = self.send_encrypted_message(method_name, random_bytes)
 		response = self.read_encrypted_message(message_id)
 		if response != random_bytes:
-			print("UdpPeer.ping error: response != random_bytes. random_bytes:", random_bytes, "response:", response)
+			print(f"UdpPeer.ping error: response != random_bytes. random_bytes: {random_bytes.hex()}, response: {response.hex() if response else response}")
 			return False
 		self.set_ping_time()
 		return True
@@ -133,7 +134,6 @@ class UdpPeer:
 		while self.is_allive():
 			sleep(0.3)
 			ping_result = self.ping()
-			#ping_result = self.run_method("ping")
 			#print("ping", get_time_str(), "-->", ping_result)
 		print(bcolors.red, "Сonnection broken:", self.addr, bcolors.endc)
 	#end define
@@ -157,18 +157,32 @@ class UdpPeer:
 		return ago
 	#end define
 
-	def set_connect_time(self):
-		self.last_connect_time = get_milli_time()
+	def set_connected_time(self):
+		self.last_connected_time = get_milli_time()
 	#end define
 
-	def get_milli_connect_ago(self):
+	def get_milli_connected_ago(self):
 		now = get_milli_time()
-		ago = now - self.last_connect_time
+		ago = now - self.last_connected_time
+		return ago
+	#end define
+
+	def set_connecting_time(self):
+		self.last_connecting_time = get_milli_time()
+	#end define
+
+	def get_milli_connecting_ago(self):
+		now = get_milli_time()
+		ago = now - self.last_connecting_time
 		return ago
 	#end define
 
 	def is_allive(self):
-		return self.get_milli_connect_ago() < 1000 or self.get_milli_ping_ago() < 1000
+		return self.get_milli_connected_ago() < 1000 or self.get_milli_ping_ago() < 1000
+	#end define
+
+	def is_ready_to_connect(self):
+		return self.get_milli_connecting_ago() > 1000 and self.is_allive() == False
 	#end define
 #end class
 
@@ -205,8 +219,12 @@ class UdpSocket:
 	#end define
 
 	def connect(self, addr, peer_pub):
-		#peer = UdpPeer(self, addr, peer_pub)
 		peer = self.get_incoming_peer(addr, peer_pub)
+		if peer.is_ready_to_connect() == False:
+			print(f"Connect error to {peer.addr} - not ready")
+			return
+		peer.set_connecting_time()
+
 		print(bcolors.blue, "Connecting:", addr, bcolors.endc)
 		handshake, aes_params = self.create_handshake(peer_pub)
 		rx_cipher, tx_cipher = create_aes_ciphers(aes_params)
@@ -219,9 +237,7 @@ class UdpSocket:
 			return
 		#end if
 
-		self.peers[addr] = peer
-		#peer.set_ping_time()
-		peer.set_connect_time()
+		peer.set_connected_time()
 		peer.run()
 		print(bcolors.blue, "Established connection", peer.addr, bcolors.endc)
 
