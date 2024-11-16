@@ -51,6 +51,7 @@ class UdpPeer:
 		self.last_connecting_time = 0
 		self.last_connected_time = 0
 		self.buff = Dict()
+		self.create_milli_time = get_milli_time()
 	#end define
 
 	#def __eq__(self, other):
@@ -110,7 +111,7 @@ class UdpPeer:
 			if message != None:
 				data.pop(message_id)
 				return message
-		print("read_message_process timeout:", message_id.hex())
+		#print("read_message_process timeout:", message_id.hex())
 	#end define
 
 	def ping(self):
@@ -119,7 +120,7 @@ class UdpPeer:
 		message_id = self.send_encrypted_message(method_name, random_bytes)
 		response = self.read_encrypted_message(message_id)
 		if response != random_bytes:
-			print(f"UdpPeer.ping error: response != random_bytes. random_bytes: {random_bytes.hex()}, response: {response.hex() if response else response}")
+			#print(f"UdpPeer.ping error: response != random_bytes. random_bytes: {random_bytes.hex()}, response: {response.hex() if response else response}")
 			return False
 		self.set_ping_time()
 		return True
@@ -201,8 +202,8 @@ class UdpSocket:
 		#self.add_reaction("ping", self.ping_reaction)
 		#self.add_reaction("response", self.response_reaction)
 
-		thread = Thread(target=self.receiving_thr)
-		thread.start()
+		Thread(target=self.receiving_thr).start()
+		Thread(target=self.cleaning_thr).start()
 
 		print(bcolors.blue, "Start udp_socket on port:", port, bcolors.endc)
 	#end define
@@ -251,6 +252,22 @@ class UdpSocket:
 			except socket.timeout:
 				continue
 			self.incoming_reaction(addr, message)
+		#end while
+	#end define
+
+	def cleaning_thr(self):
+		delta = 5*60*1000
+		while True:
+			for addr, peer in self.peers.copy().items():
+				if peer.is_allive():
+					continue
+				if peer.create_milli_time + delta > peer.last_connecting_time:
+					continue
+				if peer.get_milli_ping_ago() < delta:
+					continue
+				print("cleaning_thr", addr)
+				self.peers.pop(addr)
+			sleep(3)
 		#end while
 	#end define
 
@@ -306,7 +323,8 @@ class UdpSocket:
 		tx_cipher, rx_cipher = create_aes_ciphers(aes_params)
 		self.peers[peer.addr] = peer
 		peer.set_ciphers(rx_cipher, tx_cipher)
-		peer.set_ping_time()
+		peer.set_connecting_time()
+		peer.set_connected_time()
 		
 		print(bcolors.blue, "Established incoming connection", peer.addr, bcolors.endc)
 		response = b"ok"
