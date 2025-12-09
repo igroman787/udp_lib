@@ -140,19 +140,3 @@ class Dict(dict):
 		return self.get(key)
 	#end define
 #end class
-
-def print_table(arr):
-	buff = dict()
-	for i in range(len(arr[0])):
-		buff[i] = list()
-		for item in arr:
-			buff[i].append(len(str(item[i])))
-	for item in arr:
-		for i in range(len(arr[0])):
-			index = max(buff[i]) + 2
-			text = str(item[i]).ljust(index)
-			if item == arr[0]:
-				text = bcolors.blue + bcolors.bold + text + bcolors.endc
-			print(text, end='')
-		print()
-#end define

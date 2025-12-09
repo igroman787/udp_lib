@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf_8 -*-
 
 import socket
 from time import sleep
@@ -52,14 +54,13 @@ class UdpPeer:
 		self.last_connected_time = 0
 		self.buff = Dict()
 		self.create_milli_time = get_milli_time()
-	#end define
+		self.delta_connect_time = 1000 # ms
+		self.delta_ping_time = 300 # ms
 
-	#def __eq__(self, other):
-	#	return self.pubkey == other.pubkey
-	#end define
-
-	#def __str__(self):
-	#	return f"UdpPeer({addr}, {pubkey.hex()})"
+		self.statistics = Dict()
+		self.statistics.pings_ok = 0
+		self.statistics.connects_ok = 0
+		self.statistics.connects_error = 0
 	#end define
 
 	def send_message(self, method_name, data):
@@ -78,7 +79,7 @@ class UdpPeer:
 		#print(f"send_response - addr: {self.addr}, data: {data.hex()}, message_len: {len(message)}, message: {message.hex()}")
 	#end define
 
-	def send_encrypted_message(self, method_name, data):
+	def send_encrypted_message(self, method_name, data=b''):
 		message_id = token_bytes(4)
 		message = self.udp.create_encrypted_message(self.tx_cipher, message_id, method_name, data)
 		self.udp.sock.sendto(message, self.addr)
@@ -126,17 +127,34 @@ class UdpPeer:
 		return True
 	#end define
 
+	def ping_ok(self):
+		self.statistics.pings_ok += 1
+		self.delta_connect_time -= 100
+		if self.delta_connect_time < 1000:
+			self.delta_connect_time = 1000
+	#end define
+
 	def run(self):
-		thread = Thread(target=self.ping_thr)
-		thread.start()
+		Thread(target=self.ping_thr).start()
 	#end define
 
 	def ping_thr(self):
 		while self.is_allive():
-			sleep(0.3)
+			sleep(self.delta_ping_time/1000) # ms to sec
 			ping_result = self.ping()
-			#print("ping", get_time_str(), "-->", ping_result)
+			self.ping_ok()
+			#print("ping", get_time_str(), self.addr, "-->", ping_result)
+		self.connection_error()
+	#end define
+
+	def connection_ok(self):
+		self.statistics.connects_ok += 1
+	#end define
+
+	def connection_error(self):
 		print(bcolors.red, "Сonnection broken:", self.addr, bcolors.endc)
+		self.delta_connect_time *= 2
+		self.statistics.connects_error += 1
 	#end define
 
 	def set_ciphers(self, rx_cipher, tx_cipher):
@@ -183,7 +201,7 @@ class UdpPeer:
 	#end define
 
 	def is_ready_to_connect(self):
-		return self.get_milli_connecting_ago() > 1000 and self.is_allive() == False
+		return self.get_milli_connecting_ago() > self.delta_connect_time and self.is_allive() == False
 	#end define
 #end class
 
@@ -221,7 +239,7 @@ class UdpSocket:
 
 	def connect(self, addr, peer_pub):
 		peer = self.get_incoming_peer(addr, peer_pub)
-		if peer.is_ready_to_connect() == False:
+		if not peer.is_ready_to_connect():
 			print(f"Connect error to {peer.addr} - not ready")
 			return
 		peer.set_connecting_time()
@@ -235,12 +253,14 @@ class UdpSocket:
 		response = peer.read_message(message_id)
 		if response != b"ok":
 			print(f"Connect error to {peer.addr} - bad response: {response.hex() if response else response}")
+			peer.connection_error()
 			return
 		#end if
 
 		peer.set_connected_time()
 		peer.run()
 		print(bcolors.blue, "Established connection", peer.addr, bcolors.endc)
+		peer.connection_ok()
 
 		return peer
 	#end define
@@ -249,25 +269,23 @@ class UdpSocket:
 		while True:
 			try:
 				message, addr = self.sock.recvfrom(1024)
+				self.incoming_reaction(addr, message)
 			except socket.timeout:
 				continue
-			self.incoming_reaction(addr, message)
+			except Exception as ex:
+				print(bcolors.red, "Receiving exception:", ex, bcolors.endc)
 		#end while
 	#end define
 
 	def cleaning_thr(self):
-		delta = 5*60*1000
+		delta = 24 *3600 *1000
 		while True:
 			for addr, peer in self.peers.copy().items():
-				if peer.is_allive():
-					continue
-				if peer.create_milli_time + delta > peer.last_connecting_time:
-					continue
-				if peer.get_milli_ping_ago() < delta:
+				if peer.delta_connect_time < delta:
 					continue
 				print("cleaning_thr", addr)
 				self.peers.pop(addr)
-			sleep(3)
+			sleep(30)
 		#end while
 	#end define
 
@@ -327,6 +345,7 @@ class UdpSocket:
 		peer.set_connected_time()
 		
 		print(bcolors.blue, "Established incoming connection", peer.addr, bcolors.endc)
+		peer.connection_ok()
 		response = b"ok"
 		return response
 	#end define
@@ -368,6 +387,7 @@ class UdpSocket:
 	def ping_reaction(self, peer, message):
 		#print("pong", peer.addr, get_time_str())
 		peer.set_ping_time()
+		peer.ping_ok()
 		return message
 	#end define
 
