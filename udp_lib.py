@@ -129,7 +129,7 @@ class UdpPeer:
 
 	def ping_ok(self):
 		self.statistics.pings_ok += 1
-		self.delta_connect_time -= 100
+		self.delta_connect_time = int(self.delta_connect_time//1.1)
 		if self.delta_connect_time < 1000:
 			self.delta_connect_time = 1000
 	#end define
